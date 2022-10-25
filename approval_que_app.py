@@ -112,7 +112,7 @@ class OracleConnect:
         _where = (f"""where {_where}""" if _where else '')
         _order_by = (f"""order by {_order_by}""" if _order_by else '')
         _group_by = (f"""group by {_group_by}""" if _group_by else '')
-        _max_records_returned = (f"""fetch next {_max_records_returned} rows only""" if _group_by else '')
+        _max_records_returned = (f"""fetch next {_max_records_returned} rows only""" if _max_records_returned else '')
         _query = f"""{_select} {_from} {_where} {_order_by} {_group_by} {_max_records_returned}"""
         app_data = self.execute_sql_query(_query)
 
@@ -311,7 +311,7 @@ class OracleConnect:
     # # Build Queue Chain
     def build_a_new_queue_chain(self, queue_chain_number, queue_description, queues_to_build, orgns_to_route):
         # add budget queue Bxxx to queues_to_build for processing
-        budget_queue = ('budget', str(queue_chain_number)+queues_to_build[2][0], 0, self.budget_approvers)
+        budget_queue = ('budget', queues_to_build[2][0], 0, self.budget_approvers)
         queues_to_build.append(budget_queue)
 
         # build each queue in queue chain
@@ -424,6 +424,30 @@ class OracleConnect:
     # ## EX: term_approver('AMUSIAL1', '28-JUL-22')
     # ## EX: term_approver('AMUSIAL1', '28-JUL-22', from_queues = ('005A'))
     # ## EX: term_approver('AMUSIAL1', '28-JUL-22', from_queues = ('005A','006A'))
+
+
+    # search for empty queues
+    def search_for_mt_queues(self):
+        mt_list = []
+        _select = f"""foraqus.FORAQUS_QUEUE_ID,
+        (select count(FORAQUS_USER_ID_APPR)
+        from foraqus fa
+        where fa.FORAQUS_QUEUE_ID = foraqus.FORAQUS_QUEUE_ID
+                                    and fa.FORAQUS_TERM_DATE is null
+                                    and fa.FORAQUS_NCHG_DATE is null) as OtherApprovers"""
+        _from = f"""foraqus"""
+        _where = f"""foraqus.FORAQUS_TERM_DATE is null
+        and foraqus.FORAQUS_NCHG_DATE is null"""
+        _order_by = """2"""
+        _group_by = """"""
+        _max_records_returned = """"""
+        x = self.db_query(_select, _from, _where, _order_by, _group_by, _max_records_returned)
+        for y in x:
+            if y[1] == 0:
+                print('alert', y)
+                mt_list.append(y)
+            print(y)
+        return mt_list
 
 
 class TableBackUp:
