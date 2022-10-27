@@ -298,7 +298,7 @@ class OracleConnect:
         return next_queue
 
     def get_approvers_queues(self, approver_current_queue_list):
-        x = self.query_foraqus(my_where=f"FORAQUS_USER_ID_APPR = '{approver_current_queue_list}' and FORAQUS_NCHG_DATE is null and FORAQUS_TERM_DATE is null")
+        x = self.query_foraqus(my_where=f"FORAQUS_USER_ID_APPR = '{approver_current_queue_list}' and FORAQUS_NCHG_DATE is null and FORAQUS_TERM_DATE is null", my_order_by='FORAQUS_QUEUE_ID')
         current_approver_queues = [y[0] for y in x]
 
         if self.debug is True:
@@ -429,15 +429,14 @@ class OracleConnect:
     # search for empty queues
     def search_for_mt_queues(self):
         mt_list = []
-        _select = f"""foraqus.FORAQUS_QUEUE_ID,
+        _select = f"""distinct foraqus.FORAQUS_QUEUE_ID,
         (select count(FORAQUS_USER_ID_APPR)
         from foraqus fa
         where fa.FORAQUS_QUEUE_ID = foraqus.FORAQUS_QUEUE_ID
                                     and fa.FORAQUS_TERM_DATE is null
                                     and fa.FORAQUS_NCHG_DATE is null) as OtherApprovers"""
         _from = f"""foraqus"""
-        _where = f"""foraqus.FORAQUS_TERM_DATE is null
-        and foraqus.FORAQUS_NCHG_DATE is null"""
+        _where = f""""""
         _order_by = """2"""
         _group_by = """"""
         _max_records_returned = """"""
@@ -446,9 +445,30 @@ class OracleConnect:
             if y[1] == 0:
                 print('alert', y)
                 mt_list.append(y)
-            print(y)
+            #print(y)
         return mt_list
 
+    def orgn_to_queue(self, orgns):
+        _select = f"""distinct FORAQRC_ORGN_CODE, SUBSTR( FORAQRC_QUEUE_ID, 1, 3 )"""
+        _from = f"""FORAQRC"""
+        _where = f"""FORAQRC_ORGN_CODE in ({orgns}) and SUBSTR( FORAQRC_QUEUE_ID, 1, 1 ) != 'B'"""
+        _order_by = f""""""
+        _group_by = f""""""
+        _max_records_returned = f""""""
+
+        x = self.db_query(_select, _from, _where, _order_by, _group_by, _max_records_returned)
+        return x
+
+    def queue_to_orgn(self, orgns):
+        _select = f"""distinct FORAQRC_QUEUE_ID, FORAQRC_ORGN_CODE"""
+        _from = f"""FORAQRC"""
+        _where = f"""FORAQRC_QUEUE_ID in ({orgns})"""
+        _order_by = f""""""
+        _group_by = f""""""
+        _max_records_returned = f""""""
+
+        x = self.db_query(_select,_from,_where,_order_by,_group_by,_max_records_returned)
+        return x
 
 class TableBackUp:
     def __init__(self, connection_obj):
