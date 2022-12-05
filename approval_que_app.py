@@ -309,9 +309,13 @@ class OracleConnect:
     # Procedures
 
     # # Build Queue Chain
-    def build_a_new_queue_chain(self, queue_chain_number, queue_description, queues_to_build, orgns_to_route):
+    def build_a_new_queue_chain(self, queue_chain_number, queue_description, queues_to_build, orgns_to_route, bxxx_queue_appr=None):
         # add budget queue Bxxx to queues_to_build for processing
-        budget_queue = ('budget', queues_to_build[2][0], 0, self.budget_approvers)
+        if bxxx_queue_appr is None:
+            budget_queue = ('budget', queues_to_build[2][0], 0, self.budget_approvers)
+        else:
+            budget_queue = ('budget', queues_to_build[2][0], 0, bxxx_queue_appr)
+
         queues_to_build.append(budget_queue)
 
         # build each queue in queue chain
