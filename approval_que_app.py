@@ -281,6 +281,8 @@ class OracleConnect:
         if self.debug is True:
             print('### ##### insert_into_foraqrc #######')
 
+    # Procedures
+
     def get_next_queue_number(self):
         _select = "max(to_number(substr(FTVAPPQ_QUEUE_ID,0,3)))"
         _from = "FTVAPPQ"
@@ -297,18 +299,17 @@ class OracleConnect:
 
         return next_queue
 
-    def get_approvers_queues(self, approver_current_queue_list):
-        x = self.query_foraqus(my_where=f"FORAQUS_USER_ID_APPR = '{approver_current_queue_list}' and FORAQUS_NCHG_DATE is null and FORAQUS_TERM_DATE is null", my_order_by='FORAQUS_QUEUE_ID')
+    def get_approvers_queues(self, approver):
+        x = self.query_foraqus(my_where=f"FORAQUS_USER_ID_APPR = '{approver}' and FORAQUS_NCHG_DATE is null and FORAQUS_TERM_DATE is null", my_order_by='FORAQUS_QUEUE_ID')
         current_approver_queues = [y[0] for y in x]
 
         if self.debug is True:
             print('### ##### get_approvers_queues #######')
 
-        return approver_current_queue_list, current_approver_queues
-
-    # Procedures
+        return approver, current_approver_queues
 
     # # Build Queue Chain
+    # # add erroring checking for description length VARCHAR2(35 CHAR)
     def build_a_new_queue_chain(self, queue_chain_number, queue_description, queues_to_build, orgns_to_route, bxxx_queue_appr=None):
         # add budget queue Bxxx to queues_to_build for processing
         if bxxx_queue_appr is None:
@@ -329,7 +330,7 @@ class OracleConnect:
 
             # add approvers
             for approver in que[3]:
-                insert_approvers = f"""'{the_que}', '{approver}', 10, {que[2]}, sysdate, null, null, sysdate, 'RWALDEN'"""
+                insert_approvers = f"""'{the_que}', '{approver.upper()}', 10, {que[2]}, sysdate, null, null, sysdate, 'RWALDEN'"""
                 print(insert_approvers)
                 self.insert_into_foraqus(insert_approvers)
 
@@ -367,7 +368,7 @@ class OracleConnect:
     def set_proxy_approver(self, approver_to_proxy, proxy_approver, date_from, date_to):
         x = self.query_foraqus(my_where=f"FORAQUS_USER_ID_APPR = '{approver_to_proxy}' and FORAQUS_NCHG_DATE is null and FORAQUS_TERM_DATE is null")
         for y in x:
-            insert_term_record = f"""'{y[0]}', '{proxy_approver}', {y[2]}, {y[3]}, '{date_from}', null, '{date_to}', sysdate, 'RWALDEN' """
+            insert_term_record = f"""'{y[0]}', '{proxy_approver.upper()}', {y[2]}, {y[3]}, '{date_from}', null, '{date_to}', sysdate, 'RWALDEN' """
             self.insert_into_foraqus(insert_term_record)
 
         if self.debug is True:
@@ -395,12 +396,30 @@ class OracleConnect:
             insert_term_record = f"""'{y[0]}', '{y[1]}', {y[2]}, {y[3]}, sysdate, null, sysdate, sysdate, 'RWALDEN' """
             self.insert_into_foraqus(insert_term_record)
             # insert new approver
-            insert_term_record = f"""'{y[0]}', '{new_approver}', {y[2]}, {y[3]}, sysdate, null, null, sysdate, 'RWALDEN' """
+            insert_term_record = f"""'{y[0]}', '{new_approver.upper()}', {y[2]}, {y[3]}, sysdate, null, null, sysdate, 'RWALDEN' """
             self.insert_into_foraqus(insert_term_record)
 
         if self.debug is True:
             print('### ##### replace_approver #######')
     # ## EX: replace_approver(approver_to_place = 'BJESTER1', new_approver = 'RWALDEN')
+
+    # Add Approver
+    def add_approver(self, new_approver, to_queues=()):
+        # query que to get specs apply them to new insert
+        for y in to_queues:
+            print(y)
+            # Get sample of queue specs
+            x1,x2,x3,x4,x5,x6,x7 = self.query_foraqus(my_where=f"FORAQUS_QUEUE_ID in ('{y}')")[0]
+            print(x1,x2,x3,x4,x5,x6,x7)
+
+            # insert new approver with proper queue specs from sample of
+            insert_term_record = f"""'{x1}', '{new_approver.upper()}', {x3}, {x4}, sysdate, null, null, sysdate, 'RWALDEN' """
+            print(insert_term_record)
+            self.insert_into_foraqus(insert_term_record)
+
+        if self.debug is True:
+            print('### ##### add_approver #######')
+        # ## EX: add_approver(new_approver = 'RWALDEN', to_queues = ('000A','011A','000B'))
 
     # # Term from queues
     # ## Term Approver date format '28-JUL-22' == July 28 2022
@@ -428,7 +447,6 @@ class OracleConnect:
     # ## EX: term_approver('AMUSIAL1', '28-JUL-22')
     # ## EX: term_approver('AMUSIAL1', '28-JUL-22', from_queues = ('005A'))
     # ## EX: term_approver('AMUSIAL1', '28-JUL-22', from_queues = ('005A','006A'))
-
 
     # search for empty queues
     def search_for_mt_queues(self):
@@ -463,16 +481,17 @@ class OracleConnect:
         x = self.db_query(_select, _from, _where, _order_by, _group_by, _max_records_returned)
         return x
 
-    def queue_to_orgn(self, orgns):
+    def queue_to_orgn(self, queues):
         _select = f"""distinct FORAQRC_QUEUE_ID, FORAQRC_ORGN_CODE"""
         _from = f"""FORAQRC"""
-        _where = f"""FORAQRC_QUEUE_ID in ({orgns})"""
+        _where = f"""FORAQRC_QUEUE_ID in ({queues})"""
         _order_by = f""""""
         _group_by = f""""""
         _max_records_returned = f""""""
 
         x = self.db_query(_select,_from,_where,_order_by,_group_by,_max_records_returned)
         return x
+
 
 class TableBackUp:
     def __init__(self, connection_obj):
@@ -710,7 +729,7 @@ class TableBackUp:
 
 
 # add current date and format return
-# add check for empty queues - queues with no approvers
+# add check for empty queues - queues with no approvers -- done
 # build class to build new queue layout
-
+# Add logic to force upper case
 #%%
